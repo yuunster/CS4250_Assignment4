@@ -7,7 +7,6 @@ DB_PORT = 27017
 try:
     client = MongoClient(host=DB_HOST, port=DB_PORT)
     db = client[DB_NAME]
-    vectorizer_collection = db['vectorizer']
     documents_collection = db['documents']
     inverted_index_collection = db['invertedIndex']
 except:
