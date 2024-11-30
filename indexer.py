@@ -16,6 +16,23 @@ def index(documents: list[str]):
     # Build vocabulary and transform documents into vectors
     sparse_matrix = vectorizer.fit_transform(documents)
 
+    # Store the document vectors in the documents collection for each doc
+    for index in range(sparse_matrix.shape[0]):
+        sparse_vector = sparse_matrix.getrow(index)
+
+        # convert sparse_vector into a dictionary so we can directly insert into a mongodb document
+        indices = [str(term_index) for term_index in sparse_vector.indices]   # converts np.int32 indices into strings to be used as mongoDB fields
+        values = sparse_vector.data
+        sparse_vector_to_dict = dict(zip(indices, values))
+
+        # store sparse vector and doc id in mongodb documents collection
+        documents_collection.update_one(
+            { '_id': index },
+            { '$set': { 'vector': sparse_vector_to_dict } },
+            upsert = True
+        )
+
+
     # Serialize and store the vectorizer in mongoDB to later reinitialize a new TfidVectorizer for querying
     vectorizer_data = pickle.dumps(vectorizer)
     vectorizer_collection.update_one(
@@ -27,11 +44,9 @@ def index(documents: list[str]):
     # Retrieve the terms after tokenization
     terms = vectorizer.get_feature_names_out()
 
-    print(terms)
-
     # Print term matrix using a dataframe for console print formatting
-    print("TD-IDF Vectorizer Training\n")
-    print(pd.DataFrame(data = sparse_matrix.toarray(), columns = terms))
+    # print("TD-IDF Vectorizer Training\n")
+    # print(pd.DataFrame(data = sparse_matrix.toarray(), columns = terms))
 
     # Initialize inverted_index with _id values
     vocabulary = vectorizer.vocabulary_
@@ -40,28 +55,24 @@ def index(documents: list[str]):
         inverted_index[term] = { '_id': index, 'pos': pos, 'docs': [] }
 
     # Iterate through every token
-    for index, text in enumerate(documents):
+    for index, _ in enumerate(documents):
         sparse_vector = sparse_matrix[index]
         
         # Iterate through each term and compare to this document's vector
         for term, pos in vectorizer.vocabulary_.items():
             # If this term is non-zero in this document's vector
             if pos in sparse_vector.indices:
-                # Extract the tfidf value for that term
-                tfidf = sparse_vector.data[sparse_vector.indices == pos][0]
-
                 # Add the term to the inverted index
                 inverted_index[term]['docs'].append({
-                    "id": index,
-                    "tfidf": tfidf
+                    "id": index
                 })
 
     # Print terms and list of associated docs
-    for term, fields in inverted_index.items():
-        print(term + ": ")
-        for doc in fields['docs']:
-            print(doc)
-        print()
+    # for term, fields in inverted_index.items():
+    #     print(term + ": ")
+    #     for doc in fields['docs']:
+    #         print(doc)
+    #     print()
 
     # Store the inverted_index in mongoDB
     for term_fields in inverted_index.values():

@@ -51,7 +51,7 @@ def query(queries: list[str]):
                 "$project": {
                     "_id": 0,
                     "pos": 1,
-                    "tfidf": "$docs.tfidf",
+                    "vector": "$docs.id.vector",
                     "content": "$docs.id.content",
                     "docId": "$docs.id._id"
                 }
@@ -59,20 +59,22 @@ def query(queries: list[str]):
         ]
         results = inverted_index_collection.aggregate(pipeline)
 
-        # Organize values for easier sparse vector construction
+        # Organize values to easily see matched documents
         term_document_map = {}
         for result in results:
             if result['docId'] not in term_document_map:
-                term_document_map[result['docId']] = { 'pos_values': [], 'tfidf_values': [] }
+                term_document_map[result['docId']] = {}
 
-            term_document_map[result['docId']]['pos_values'].append(result['pos'])
-            term_document_map[result['docId']]['tfidf_values'].append(result['tfidf'])
+            term_document_map[result['docId']]['vector'] = result['vector']
             term_document_map[result['docId']]['content'] = result['content']
 
-        # Create a document vector for each matched document
+        # Calculate cosine similarity for each matched document
         documents_with_cos_sim = []
         for value in term_document_map.values():
-            document_vector = csr_matrix((value['tfidf_values'], value['pos_values'], [0, len(value['tfidf_values'])]), shape=(1, query_vector.shape[1]))
+            # Reconstruct a sparse vector using the dictionary received from mongoDB
+            values = list(value['vector'].values())
+            indices = list(value['vector'].keys())
+            document_vector = csr_matrix((values, indices, [0, len(values)]), shape=(1, query_vector.shape[1]))
             cos_sim = cosine_similarity(query_vector, document_vector)
             documents_with_cos_sim.append((
                 value['content'],
