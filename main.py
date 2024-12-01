@@ -1,8 +1,7 @@
 from database import *
 from sklearn.feature_extraction.text import TfidfVectorizer
 import pandas as pd
-from sklearn.metrics.pairwise import cosine_similarity
-from scipy.sparse import csr_matrix
+import numpy as np
 
 ## Store documents in mongoDB
 #################################################################################################
@@ -142,10 +141,20 @@ for i, query in enumerate(queries):
     documents_with_cos_sim = []
     for key, value in term_document_map.items():
         document_vector = sparse_matrix[key]
-        cos_sim = cosine_similarity(query_vector, document_vector)
+        # Iterate through non-zero values of the query vector to find the dot product between query and matching document vector
+        dot_prod = 0
+        for index in query_vector.nonzero()[1]:
+            dot_prod += query_vector[0, index] * document_vector[0, index]
+        
+        # Find magnitudes
+        doc_magnitude = np.sqrt(sum([nonzero_value**2 for nonzero_value in document_vector.data]))
+        query_magnitude = np.sqrt(sum([nonzero_value**2 for nonzero_value in query_vector.data]))
+        # Calculate cosine similarity scores
+        cos_sim = dot_prod / (doc_magnitude * query_magnitude)
+
         documents_with_cos_sim.append((
             value['content'],
-            float(cos_sim[0][0])
+            cos_sim
         ))
     
     # Sort documents by cosine similarity score
