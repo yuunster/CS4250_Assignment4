@@ -33,13 +33,6 @@ vectorizer = TfidfVectorizer(
 # Build vocabulary and transform documents into vectors
 sparse_matrix = vectorizer.fit_transform(documents)
 
-# Retrieve the terms after tokenization
-terms = vectorizer.get_feature_names_out()
-
-# Print term matrix using a dataframe for console print formatting
-# print("TD-IDF Vectorizer Training\n")
-# print(pd.DataFrame(data = sparse_matrix.toarray(), columns = terms))
-
 # Initialize inverted_index with _id values
 vocabulary = vectorizer.vocabulary_
 inverted_index = {}
@@ -59,13 +52,6 @@ for index, _ in enumerate(documents):
                 "id": index,
                 "tfidf": sparse_vector[0, pos]
             })
-
-# Print terms and list of associated docs
-# for term, fields in inverted_index.items():
-#     print(term + ": ")
-#     for doc in fields['docs']:
-#         print(doc)
-#     print()
 
 # Store the inverted_index in mongoDB
 for term_fields in inverted_index.values():
@@ -90,10 +76,10 @@ for i, query in enumerate(queries):
     # Calculate vector for each query
     query_vector = vectorizer.transform([query])
 
-    # Find matching documents for query
     # Extract non-zero indices
     non_zero_indices = query_vector.nonzero()[1].tolist()
 
+    # Find matching documents for query
     pipeline = [
         # Match documents in inverted_index_collection based on query's non zero indices
         {
@@ -108,10 +94,10 @@ for i, query in enumerate(queries):
         # Reference documents collection to get content of each doc
         {
             "$lookup": {
-                "from": "documents",  # The collection to join with
-                "localField": "docs.id",  # Field in inverted_index to match
-                "foreignField": "_id",  # Field in documents to match
-                "as": "docs.id"  # The name of the new array field to store matched documents
+                "from": "documents",
+                "localField": "docs.id",
+                "foreignField": "_id",
+                "as": "docs.id"
             }
         },
         {
