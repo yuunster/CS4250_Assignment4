@@ -123,7 +123,8 @@ for i, query in enumerate(queries):
                 "_id": 0,
                 "pos": 1,
                 "content": "$docs.id.content",
-                "docId": "$docs.id._id"
+                "docId": "$docs.id._id",
+                "tfidf": "$docs.tfidf"
             }
         }
     ]
@@ -133,28 +134,25 @@ for i, query in enumerate(queries):
     term_document_map = {}
     for result in results:
         if result['docId'] not in term_document_map:
-            term_document_map[result['docId']] = {}
+            term_document_map[result['docId']] = {'vector': {}}
 
         term_document_map[result['docId']]['content'] = result['content']
+        term_document_map[result['docId']]['vector'][result['pos']] = result['tfidf']
 
     # Calculate cosine similarity for each matched document
     documents_with_cos_sim = []
-    for key, value in term_document_map.items():
-        document_vector = sparse_matrix[key]
-        # Iterate through non-zero values of the query vector to find the dot product between query and matching document vector
+    for docId, document in term_document_map.items():
+        # Iterate through matched document tfidf values to find the dot product between query and matching document vector
         dot_prod = 0
-        for index in query_vector.nonzero()[1]:
-            dot_prod += query_vector[0, index] * document_vector[0, index]
+        for pos, doc_tfidf in document['vector'].items():
+            dot_prod += query_vector[0, pos] * doc_tfidf
         
-        # Find magnitudes
-        doc_magnitude = np.sqrt(sum([nonzero_value**2 for nonzero_value in document_vector.data]))
-        query_magnitude = np.sqrt(sum([nonzero_value**2 for nonzero_value in query_vector.data]))
-        # Calculate cosine similarity scores
-        cos_sim = dot_prod / (doc_magnitude * query_magnitude)
+        # Note: Since the tf-idf values produced by the TfidfVectorizer are already normalized, we do not need to divide the dot_product
+        # by the magnitudes the query and document vectors. The dot_product itself already results in the cosine_similarity score.
 
         documents_with_cos_sim.append((
-            value['content'],
-            cos_sim
+            document['content'],
+            dot_prod
         ))
     
     # Sort documents by cosine similarity score
